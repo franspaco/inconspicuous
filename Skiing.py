@@ -1,6 +1,3 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
 from keras.layers import Dense
 from keras.models import Sequential
 from keras.utils import to_categorical
@@ -127,6 +124,7 @@ class Skier:
         self.train_x = []
         self.train_y = []
         self.lr_counter = 0
+        self.missing_flags = 20
 
     def action(self, frame, training=False):
         frame = self.preprocessFrame(frame).flatten()
@@ -135,6 +133,7 @@ class Skier:
         y = np.random.choice([0, 1, 2], p=probs[0])
         if float('nan') in probs[0]:
             print("NANANANANANANANANANANANANANANANANANA", probs[0])
+            exit()
         if not training:
             return y
         else:
@@ -154,14 +153,20 @@ class Skier:
         self.lr_counter += 1
         if frame_reward == 0 and self.last_reward != 0:
             reward = self.last_reward
-            reward -= 0.5 * \
-                np.tanh((0.05 * (self.lr_counter - self.ideal_flag_interval)))
+            reward -= 0.5 * np.tanh((0.05 * (self.lr_counter - self.ideal_flag_interval)))
             self.lr_counter = 0
+            self.missing_flags -= 1
         self.last_reward = frame_reward
 
         self.rewards.append(reward)
 
     def train(self, verbose=0):
+        if self.autosave is not None and self.episode % self.autosave == 0:
+            self.save("last.h5")
+            print("Saved!")
+        
+        print("missed:", self.missing_flags, "flags")
+        self.rewards[-1] -= self.missing_flags * 5
         sample_weights = discount_rewards(self.rewards, self.gamma)
         self.model.fit(
             x=np.vstack(self.train_x),
@@ -169,9 +174,6 @@ class Skier:
             verbose=verbose,
             sample_weight=sample_weights
         )
-        if self.autosave is not None and self.episode % self.autosave == 0:
-            self.save("last.h5")
-            print("Saved!")
         self.episode += 1
         self.decay()
 
@@ -188,10 +190,9 @@ class Skier:
         self.model.load_weights(name)
 
 
-agent = Skier(gamma=0.95, e_decay=0.96)
+agent = Skier(gamma=0.95, e_decay=0.95)
 agent.model.summary()
 
-agent.load("last.h5")
 
 agent.set_autosave(10)
 observation = env.reset()
