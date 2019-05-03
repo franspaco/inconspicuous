@@ -1,4 +1,4 @@
-from keras.layers import Dense
+from keras import layers
 from keras.models import Sequential
 from keras.utils import to_categorical
 import numpy as np
@@ -48,9 +48,9 @@ def discount_rewards(r, gamma):
     running_add = 0
     # we go from last reward to first one so we don't have to do exponentiations
     for t in reversed(range(0, r.size)):
-        if r[t] != 0:
+        #if r[t] != 0:
             # if the game ended (in Pong), reset the reward sum
-            running_add = 0
+            #running_add = 0
         # the point here is to use Horner's method to compute those rewards efficiently
         running_add = running_add * gamma + r[t]
         discounted_r[t] = running_add
@@ -78,17 +78,25 @@ class Skier:
 
     def _make_model(self):
         model = Sequential()
-        model.add(Dense(
-            units=256,
-            input_dim=72*72,
+
+        model.add(layers.Conv2D(8, (3, 3), activation='relu', input_shape=(146, 144, 3)))
+        model.add(layers.Conv2D(8, (3, 3), activation='relu'))
+        model.add(layers.MaxPooling2D((2, 2)))
+        model.add(layers.Conv2D(16, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(16, (3, 3), activation='relu'))
+        model.add(layers.MaxPooling2D((2, 2)))
+        model.add(layers.Flatten())
+        model.add(layers.Dense(
+            units=128,
+            #input_dim=72*72,
             activation='relu',
             # kernel_initializer='glorot_uniform'
         ))
-        model.add(Dense(
-            units=128,
-            activation='relu'
-        ))
-        model.add(Dense(
+        # model.add(layers.Dense(
+        #     units=64,
+        #     activation='relu'
+        # ))
+        model.add(layers.Dense(
             units=3,
             activation='softmax',
             # kernel_initializer='RandomNormal'
@@ -106,12 +114,12 @@ class Skier:
         and important game elements are white.
         Output is [0,1]
         """
-        I = I[::2, ::2, 1]
-        I = I[31:103, 4:76]
-        I[I == 236] = 0
-        I[I == 192] = 0
-        I[I == 214] = 0
-        I[I != 0] = 255
+        #I = I[::2, ::2, 1]
+        I = I[57:203, 8:152]
+        #I[I == 236] = 0
+        #I[I == 192] = 0
+        #I[I == 214] = 0
+        #I[I != 0] = 255
         return I/255
 
     def decay(self):
@@ -127,7 +135,7 @@ class Skier:
         self.missing_flags = 20
 
     def action(self, frame, training=False):
-        frame = self.preprocessFrame(frame).flatten()
+        frame = self.preprocessFrame(frame)
         x = np.array([frame])
         probs = self.model.predict(x)
         y = np.random.choice([0, 1, 2], p=probs[0])
@@ -160,16 +168,19 @@ class Skier:
 
         self.rewards.append(reward)
 
+    def done(self):
+        self.rewards[-1] -= self.missing_flags * 5
+
     def train(self, verbose=0):
         if self.autosave is not None and self.episode % self.autosave == 0:
             self.save("last.h5")
             print("Saved!")
         
         print("missed:", self.missing_flags, "flags")
-        self.rewards[-1] -= self.missing_flags * 5
+        #self.rewards[-1] -= self.missing_flags * 5
         sample_weights = discount_rewards(self.rewards, self.gamma)
         self.model.fit(
-            x=np.vstack(self.train_x),
+            x=np.array(self.train_x),
             y=np.vstack(self.train_y),
             verbose=verbose,
             sample_weight=sample_weights
@@ -206,7 +217,10 @@ while True:
 
     agent.register_frame(observation)
 
+    #agent.save_reward(reward)
+
     if done:
+        agent.done()
         total_reward = agent.total_reward()
         hist.add(total_reward)
 
