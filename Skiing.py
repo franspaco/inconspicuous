@@ -1,3 +1,6 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 from keras.layers import Dense
 from keras.models import Sequential
 from keras.utils import to_categorical
@@ -160,8 +163,6 @@ class Skier:
 
     def train(self, verbose=0):
         sample_weights = discount_rewards(self.rewards, self.gamma)
-        for item in sample_weights:
-            print(item)
         self.model.fit(
             x=np.vstack(self.train_x),
             y=np.vstack(self.train_y),
@@ -187,9 +188,10 @@ class Skier:
         self.model.load_weights(name)
 
 
-agent = Skier(gamma=0.95, e_decay=0.95)
+agent = Skier(gamma=0.95, e_decay=0.96)
 agent.model.summary()
 
+agent.load("last.h5")
 
 agent.set_autosave(10)
 observation = env.reset()
@@ -213,7 +215,7 @@ while True:
                 f"Ep: {agent.episode:4}\nTotal reward: {total_reward:.3f}\nEpsilon: {agent.epsilon:.4f}")
             hist.report()
 
-        agent.train()
+        agent.train(verbose=1)
         agent.reset()
 
         observation = env.reset()
