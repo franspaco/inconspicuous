@@ -39,8 +39,6 @@ def get_frame_reward(I, prev):
         return prev
 
 # reward discount used by Karpathy (cf. https://gist.github.com/karpathy/a4166c7fe253700972fcbc77e4ea32c5)
-
-
 def discount_rewards(r, gamma):
     """ take 1D float array of rewards and compute discounted reward """
     r = np.array(r)
@@ -48,14 +46,14 @@ def discount_rewards(r, gamma):
     running_add = 0
     # we go from last reward to first one so we don't have to do exponentiations
     for t in reversed(range(0, r.size)):
-        #if r[t] != 0:
+        if r[t] != 0:
             # if the game ended (in Pong), reset the reward sum
-            #running_add = 0
+            running_add = 0
         # the point here is to use Horner's method to compute those rewards efficiently
         running_add = running_add * gamma + r[t]
         discounted_r[t] = running_add
-    discounted_r -= np.mean(discounted_r)  # normalizing the result
-    discounted_r /= np.std(discounted_r)  # idem
+    #discounted_r -= np.mean(discounted_r)  # normalizing the result
+    #discounted_r /= np.std(discounted_r)  # idem
     return discounted_r
 
 
@@ -87,7 +85,7 @@ class Skier:
         model.add(layers.MaxPooling2D((2, 2)))
         model.add(layers.Flatten())
         model.add(layers.Dense(
-            units=128,
+            units=512,
             #input_dim=72*72,
             activation='relu',
             # kernel_initializer='glorot_uniform'
@@ -139,6 +137,7 @@ class Skier:
         x = np.array([frame])
         probs = self.model.predict(x)
         y = np.random.choice([0, 1, 2], p=probs[0])
+        print(probs[0], end='\r')
         if float('nan') in probs[0]:
             print("NANANANANANANANANANANANANANANANANANA", probs[0])
             exit()
@@ -160,10 +159,11 @@ class Skier:
         reward = 0
         self.lr_counter += 1
         if frame_reward == 0 and self.last_reward != 0:
-            reward = self.last_reward
-            reward -= 0.5 * np.tanh((0.05 * (self.lr_counter - self.ideal_flag_interval)))
+            reward = self.last_reward + 2
+            reward -= 0.25 * np.tanh((0.05 * (self.lr_counter - self.ideal_flag_interval)))
             self.lr_counter = 0
             self.missing_flags -= 1
+            print(reward, end='\r')
         self.last_reward = frame_reward
 
         self.rewards.append(reward)
@@ -176,7 +176,7 @@ class Skier:
             self.save("last.h5")
             print("Saved!")
         
-        print("missed:", self.missing_flags, "flags")
+        #print("missed:", self.missing_flags, "flags")
         #self.rewards[-1] -= self.missing_flags * 5
         sample_weights = discount_rewards(self.rewards, self.gamma)
         self.model.fit(
@@ -201,9 +201,10 @@ class Skier:
         self.model.load_weights(name)
 
 
-agent = Skier(gamma=0.95, e_decay=0.95)
+agent = Skier(gamma=0.99, e_decay=0.90)
 agent.model.summary()
 
+#agent.load("last.h5")
 
 agent.set_autosave(10)
 observation = env.reset()
@@ -217,19 +218,16 @@ while True:
 
     agent.register_frame(observation)
 
-    #agent.save_reward(reward)
-
     if done:
-        agent.done()
+        #agent.done()
         total_reward = agent.total_reward()
         hist.add(total_reward)
 
         if agent.episode % 1 == 0:
-            print('# - = - = - = - #')
+            print('\n# - = - = - = - #')
             print(
                 f"Ep: {agent.episode:4}\nTotal reward: {total_reward:.3f}\nEpsilon: {agent.epsilon:.4f}")
             hist.report()
-
         agent.train(verbose=1)
         agent.reset()
 
