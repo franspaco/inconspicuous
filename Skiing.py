@@ -52,8 +52,8 @@ def discount_rewards(r, gamma):
         # the point here is to use Horner's method to compute those rewards efficiently
         running_add = running_add * gamma + r[t]
         discounted_r[t] = running_add
-    #discounted_r -= np.mean(discounted_r)  # normalizing the result
-    #discounted_r /= np.std(discounted_r)  # idem
+    discounted_r -= np.mean(discounted_r)  # normalizing the result
+    discounted_r /= np.std(discounted_r)  # idem
     return discounted_r
 
 
@@ -77,12 +77,9 @@ class Skier:
     def _make_model(self):
         model = Sequential()
 
-        model.add(layers.Conv2D(8, (3, 3), activation='relu', input_shape=(146, 144, 3)))
-        model.add(layers.Conv2D(8, (3, 3), activation='relu'))
-        model.add(layers.MaxPooling2D((2, 2)))
-        model.add(layers.Conv2D(16, (3, 3), activation='relu'))
-        model.add(layers.Conv2D(16, (3, 3), activation='relu'))
-        model.add(layers.MaxPooling2D((2, 2)))
+        model.add(layers.Conv2D(16, (8, 8), strides=4, activation='relu', input_shape=(146, 144, 3)))
+        model.add(layers.Conv2D(32, (4, 4), strides=2, activation='relu'))
+        model.add(layers.Conv2D(34, (3, 3), strides=1, activation='relu'))
         model.add(layers.Flatten())
         model.add(layers.Dense(
             units=512,
@@ -136,9 +133,10 @@ class Skier:
         frame = self.preprocessFrame(frame)
         x = np.array([frame])
         probs = self.model.predict(x)
-        y = np.random.choice([0, 1, 2], p=probs[0])
+        #y = np.random.choice([0, 1, 2], p=probs[0])
+        y = np.argmax(probs[0])
         print(probs[0], end='\r')
-        if float('nan') in probs[0]:
+        if float('nan') == probs[0][0]:
             print("NANANANANANANANANANANANANANANANANANA", probs[0])
             exit()
         if not training:
@@ -173,7 +171,7 @@ class Skier:
 
     def train(self, verbose=0):
         if self.autosave is not None and self.episode % self.autosave == 0:
-            self.save("last.h5")
+            self.save("skiing_last.h5")
             print("Saved!")
         
         #print("missed:", self.missing_flags, "flags")
@@ -201,7 +199,7 @@ class Skier:
         self.model.load_weights(name)
 
 
-agent = Skier(gamma=0.99, e_decay=0.90)
+agent = Skier(gamma=0.99, e_decay=0.97)
 agent.model.summary()
 
 #agent.load("last.h5")

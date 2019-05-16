@@ -32,7 +32,7 @@ def get_frame_reward(I, prev):
 
     if len(flags[1]) == 2:
         if player >= flags[1][0] and player <= flags[1][1]:
-            return 1
+            return 10
         else:
             return -1
     else:
@@ -137,13 +137,13 @@ class Skier:
         frame = self.preprocessFrame(frame)
         data = np.zeros((146, 144, 2))
         data[:,:,0] = self.last_frame
-        data[:,:,0] = frame
+        data[:,:,1] = frame
         self.last_frame = frame
         probs = self.model.predict(np.expand_dims(data, 0))
         #y = np.random.choice([0, 1, 2], p=probs[0])
         y = np.argmax(probs[0])
         print(probs[0], end='\r')
-        if float('nan') in probs[0]:
+        if float('nan') == probs[0][0]:
             print("NANANANANANANANANANANANANANANANANANA", probs[0])
             exit()
         if not training:
@@ -178,7 +178,7 @@ class Skier:
 
     def train(self, verbose=0):
         if self.autosave is not None and self.episode % self.autosave == 0:
-            self.save("last_lf.h5")
+            self.save("last_lf_2.h5")
             print("Saved!")
         
         #print("missed:", self.missing_flags, "flags")
@@ -206,34 +206,37 @@ class Skier:
         self.model.load_weights(name)
 
 
-agent = Skier(gamma=0.99, e_decay=0.90)
+agent = Skier(gamma=0.99, e_decay=0.90, epsilon=0.05)
 agent.model.summary()
 
-#agent.load("last.h5")
+agent.load("last_lf_2.h5")
 
 agent.set_autosave(10)
 observation = env.reset()
 hist = RewardHist(100)
 agent.reset()
+
+env_reward = 0
+
 while True:
     env.render()
     action = agent.action(observation, training=True)
 
     observation, reward, done, _ = env.step(action)
+    env_reward += reward
 
     agent.register_frame(observation)
 
     if done:
         #agent.done()
-        total_reward = agent.total_reward()
-        hist.add(total_reward)
+        hist.add(env_reward)
 
         if agent.episode % 1 == 0:
             print('\n# - = - = - = - #')
-            print(
-                f"Ep: {agent.episode:4}\nTotal reward: {total_reward:.3f}\nEpsilon: {agent.epsilon:.4f}")
+            print(f"Ep: {agent.episode:4}\nER: {env_reward}\nCR: {agent.total_reward():.3f}\nEpsilon: {agent.epsilon:.4f}")
             hist.report()
         agent.train(verbose=1)
         agent.reset()
 
         observation = env.reset()
+        env_reward = 0
